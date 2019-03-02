@@ -6,10 +6,68 @@ const morgan = require('morgan');
 const MOVIES = require('./movies.json');
 
 const app = express();
+const morganSetting = process.env.NODE_ENV === 'production' ? 'tiny' : 'common';
 
 app.use(cors());
 app.use(helmet());
-app.use(morgan('dev'));
+app.use(morgan(morganSetting));
+
+const VALID_COUNTRIES = [
+	'canada',
+	'china',
+	'france',
+	'germany',
+	'great britain',
+	'hungary',
+	'israel',
+	'italy',
+	'japan',
+	'spain',
+	'united states'
+];
+const VALID_GENRES = [
+	'action',
+	'adventure',
+	'animation',
+	'biography',
+	'comedy',
+	'crime',
+	'documentary',
+	'drama',
+	'fantasy',
+	'grotesque',
+	'history',
+	'horror',
+	'musical',
+	'romantic',
+	'spy',
+	'thriller',
+	'war',
+	'western'
+];
+
+function processQuery(req, res, next) {
+	const { genre, country, avg_vote } = req.query;
+	let err;
+
+	if (genre && !VALID_GENRES.includes(genre.toLowerCase())) {
+		err = new Error();
+		err.message = 'Please enter a valid genre';
+	}
+
+	if (country && !VALID_COUNTRIES.includes(country.toLowerCase())) {
+		err = new Error();
+		err.message = 'Please enter a valid country';
+	}
+
+	if (avg_vote && isNaN(avg_vote)) {
+		err = new Error();
+		err.message = 'Please enter a valid number';
+	}
+
+	if (err) return next(err);
+	next();
+}
 
 function validateBearerToken(req, res, next) {
 	const apiToken = process.env.API_TOKEN;
@@ -42,10 +100,14 @@ function handleGetMovie(req, res) {
 
 app.use(validateBearerToken);
 
-app.get('/movie', handleGetMovie);
+app.get('/movie', processQuery, handleGetMovie);
 
-const PORT = 8000;
-
-app.listen(PORT, () => {
-	console.log(`Server listening at http://localhost:${PORT}`);
+app.use(function(err, req, res, next) {
+	res.status(err.status || 500).json({
+		error: err.message
+	});
 });
+
+const PORT = process.env.PORT || 8000;
+
+app.listen(PORT);
